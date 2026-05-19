@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import asyncio
 import time
-from typing import Iterable, List, Optional
+from typing import Iterable, List
 
 import httpx
 
@@ -58,15 +58,21 @@ class CmcClient:
             res.raise_for_status()
             payload = res.json() or {}
             data = payload.get("data") or []
-            self._cache = [
-                {
+            self._cache = []
+            for i, item in enumerate(data[:100]):
+                if not item.get("symbol"):
+                    continue
+                quote = (item.get("quote") or {}).get("USD") or {}
+                try:
+                    market_cap = float(quote.get("market_cap") or 0)
+                except (TypeError, ValueError):
+                    market_cap = 0.0
+                self._cache.append({
                     "rank": i + 1,
                     "cmc_symbol": str(item.get("symbol", "")).upper(),
                     "name": item.get("name", ""),
-                }
-                for i, item in enumerate(data[:100])
-                if item.get("symbol")
-            ]
+                    "market_cap": market_cap,
+                })
             self._cache_at = now
             self._last_error = ""
         except Exception as e:
@@ -83,6 +89,7 @@ class CmcClient:
                 "rank": item["rank"],
                 "cmc_symbol": item["cmc_symbol"],
                 "name": item["name"],
+                "market_cap": item.get("market_cap", 0.0),
                 "gate_symbol": gate if listed else None,
                 "gate_listed": listed,
             })
