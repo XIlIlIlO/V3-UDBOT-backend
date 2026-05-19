@@ -36,6 +36,7 @@ class GateFuturesClient:
             name = c.get("name") or c.get("contract")
             status = str(c.get("status", "")).lower()
             in_delisting = bool(c.get("in_delisting", False))
+            contract_type = str(c.get("contract_type") or "").strip().lower()
 
             if not name:
                 continue
@@ -44,6 +45,9 @@ class GateFuturesClient:
             if status and status != "trading":
                 continue
             if self.settings.exclude_delisting and in_delisting:
+                continue
+            # Gate의 contract_type: crypto는 "", 그 외 stocks/indices/metals/commodities/forex.
+            if self.settings.exclude_non_crypto and contract_type:
                 continue
 
             symbols.append(name)

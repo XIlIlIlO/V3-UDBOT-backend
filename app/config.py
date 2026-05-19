@@ -18,6 +18,9 @@ class Settings(BaseSettings):
     symbol_limit: int = 0
     use_top_volume: bool = True
     exclude_delisting: bool = True
+    # Gate.io USDT-perp 중 stocks/indices/metals/commodities/forex 같은 비-크립토
+    # contract_type을 제외할지 여부. True면 contract_type == "" 만 포함.
+    exclude_non_crypto: bool = True
 
     # All timeframes served (1m fetched from API/WS, rest derived)
     timeframes: str = "1m,3m,5m,15m,30m,1h"
