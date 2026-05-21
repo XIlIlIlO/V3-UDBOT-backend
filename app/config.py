@@ -71,6 +71,14 @@ class Settings(BaseSettings):
     # ── Ranking service (변동성/거래대금 top 100, WS 푸시) ──
     ranking_tick_seconds: float = 1.0
 
+    # ── Telegram heartbeat (alive 주기 알림) ──
+    # 인스턴스 식별자 — 메시지에 표시됨 (예: office, railway)
+    instance_name: str = "unknown"
+    telegram_bot_token: str = ""
+    telegram_chat_id: str = ""
+    # heartbeat 간격(초). 0 또는 음수면 비활성화. 기본 300초 = 5분.
+    telegram_heartbeat_interval_sec: int = 300
+
     @property
     def timeframe_list(self) -> List[str]:
         return [x.strip() for x in self.timeframes.split(",") if x.strip()]

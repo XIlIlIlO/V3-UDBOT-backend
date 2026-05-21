@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import time
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -13,6 +14,7 @@ from app.services.cmc_client import CmcClient
 from app.services.futures_client import GateFuturesClient
 from app.services.rankings import RankingService
 from app.services.scanner import MarketScanner
+from app.services.telegram_notifier import TelegramNotifier
 from app.services.webhook import WebhookSender
 from app.services.ws_subscriber import GateFuturesWsSubscriber
 from app.state import MarketState
@@ -27,6 +29,10 @@ async def lifespan(app: FastAPI):
     market_state = MarketState(settings)
     ws_manager = WebSocketManager()
     webhook_sender = WebhookSender(settings.webhook_url)
+    telegram_notifier = TelegramNotifier(
+        bot_token=settings.telegram_bot_token,
+        chat_id=settings.telegram_chat_id,
+    )
     cmc_client = CmcClient(
         api_key=settings.cmc_api_key,
         refresh_seconds=settings.cmc_refresh_seconds,
@@ -84,8 +90,35 @@ async def lifespan(app: FastAPI):
 
     ws_starter_task = asyncio.create_task(_start_ws_when_ready())
 
+    async def _heartbeat_loop():
+        if not telegram_notifier.enabled:
+            return
+        interval = settings.telegram_heartbeat_interval_sec
+        if interval <= 0:
+            return
+        started_at = time.time()
+        while True:
+            uptime_sec = int(time.time() - started_at)
+            h, rem = divmod(uptime_sec, 3600)
+            m, _ = divmod(rem, 60)
+            msg = (
+                f"🟢 [{settings.instance_name}] alive\n"
+                f"symbols: {len(market_state.symbols)}\n"
+                f"phase: {market_state.current_phase or '-'}\n"
+                f"uptime: {h}h {m}m"
+            )
+            await telegram_notifier.send(msg)
+            await asyncio.sleep(interval)
+
+    heartbeat_task = asyncio.create_task(_heartbeat_loop())
+
     yield
 
+    heartbeat_task.cancel()
+    try:
+        await heartbeat_task
+    except BaseException:
+        pass
     ws_starter_task.cancel()
     try:
         await ws_starter_task
@@ -97,6 +130,7 @@ async def lifespan(app: FastAPI):
     await futures_client.close()
     await webhook_sender.close()
     await cmc_client.close()
+    await telegram_notifier.close()
 
 
 app = FastAPI(
